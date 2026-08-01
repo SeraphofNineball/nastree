@@ -1,0 +1,7 @@
+node_modules/
+frontend/dist/
+backend/nastree
+*.db
+*.db-wal
+*.db-shm
+.DS_Store

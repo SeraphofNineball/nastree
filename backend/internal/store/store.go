@@ -1,0 +1,287 @@
+package store
+
+import (
+	"database/sql"
+	"path/filepath"
+	"time"
+
+	_ "modernc.org/sqlite"
+
+	"nastree/internal/model"
+	"nastree/internal/scanner"
+)
+
+type Store struct {
+	db *sql.DB
+}
+
+const schema = `
+CREATE TABLE IF NOT EXISTS scans (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	root_path TEXT NOT NULL,
+	started_at INTEGER NOT NULL,
+	finished_at INTEGER NOT NULL,
+	duration_ms INTEGER NOT NULL,
+	total_size INTEGER NOT NULL,
+	total_files INTEGER NOT NULL,
+	total_dirs INTEGER NOT NULL,
+	disk_total INTEGER NOT NULL,
+	disk_free INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nodes (
+	scan_id INTEGER NOT NULL,
+	path TEXT NOT NULL,
+	parent_path TEXT NOT NULL,
+	name TEXT NOT NULL,
+	is_dir INTEGER NOT NULL,
+	size INTEGER NOT NULL,
+	files INTEGER NOT NULL,
+	dirs INTEGER NOT NULL,
+	ext TEXT NOT NULL DEFAULT '',
+	mod_time INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_nodes_scan_parent ON nodes(scan_id, parent_path);
+CREATE INDEX IF NOT EXISTS idx_nodes_scan_ext ON nodes(scan_id, ext);
+CREATE INDEX IF NOT EXISTS idx_nodes_scan_path ON nodes(scan_id, path);
+`
+
+func Open(path string) (*Store, error) {
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1) // modernc sqlite: keep writes serialized, simplest for our access pattern
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(schema); err != nil {
+		return nil, err
+	}
+	return &Store{db: db}, nil
+}
+
+func (s *Store) Close() error {
+	return s.db.Close()
+}
+
+// SaveScan persists a completed scan and prunes older scans beyond retain.
+func (s *Store) SaveScan(res *scanner.Result, diskTotal, diskFree uint64, startedAt, finishedAt time.Time, retain int) (int64, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(
+		`INSERT INTO scans (root_path, started_at, finished_at, duration_ms, total_size, total_files, total_dirs, disk_total, disk_free)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		filepath.Clean(res.RootPath), startedAt.Unix(), finishedAt.Unix(), finishedAt.Sub(startedAt).Milliseconds(),
+		res.TotalSize, res.TotalFiles, res.TotalDirs, diskTotal, diskFree,
+	)
+	if err != nil {
+		return 0, err
+	}
+	scanID, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	stmt, err := tx.Prepare(
+		`INSERT INTO nodes (scan_id, path, parent_path, name, is_dir, size, files, dirs, ext, mod_time)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	)
+	if err != nil {
+		return 0, err
+	}
+	for _, r := range res.Records() {
+		if _, err := stmt.Exec(scanID, r.Path, r.ParentPath, r.Name, r.IsDir, r.Size, r.Files, r.Dirs, r.Ext, r.ModTime); err != nil {
+			stmt.Close()
+			return 0, err
+		}
+	}
+	stmt.Close()
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	if err := s.prune(retain); err != nil {
+		return scanID, err
+	}
+	return scanID, nil
+}
+
+func (s *Store) prune(retain int) error {
+	if retain <= 0 {
+		retain = 1
+	}
+	rows, err := s.db.Query(`SELECT id FROM scans ORDER BY id DESC LIMIT -1 OFFSET ?`, retain)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+
+	for _, id := range ids {
+		if _, err := s.db.Exec(`DELETE FROM nodes WHERE scan_id = ?`, id); err != nil {
+			return err
+		}
+		if _, err := s.db.Exec(`DELETE FROM scans WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) latestScanRow() (id int64, rootPath string, err error) {
+	err = s.db.QueryRow(`SELECT id, root_path FROM scans ORDER BY id DESC LIMIT 1`).Scan(&id, &rootPath)
+	return
+}
+
+// Status returns metadata for the most recent persisted scan.
+// It returns (nil, nil) if no scan has completed yet.
+func (s *Store) Status() (*model.ScanStatus, error) {
+	row := s.db.QueryRow(
+		`SELECT id, root_path, started_at, finished_at, duration_ms, total_size, total_files, total_dirs, disk_total, disk_free
+		 FROM scans ORDER BY id DESC LIMIT 1`,
+	)
+	var st model.ScanStatus
+	var startedAt, finishedAt int64
+	var diskTotal, diskFree int64
+	err := row.Scan(&st.ScanID, &st.RootPath, &startedAt, &finishedAt, &st.DurationMs, &st.TotalSize, &st.TotalFiles, &st.TotalDirs, &diskTotal, &diskFree)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	st.StartedAt = time.Unix(startedAt, 0)
+	st.FinishedAt = time.Unix(finishedAt, 0)
+	st.DiskTotal = uint64(diskTotal)
+	st.DiskFree = uint64(diskFree)
+	return &st, nil
+}
+
+// RootNode returns the root entry of the most recent scan.
+func (s *Store) RootNode() (*model.Node, error) {
+	scanID, rootPath, err := s.latestScanRow()
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return s.nodeAt(scanID, rootPath)
+}
+
+func (s *Store) nodeAt(scanID int64, path string) (*model.Node, error) {
+	row := s.db.QueryRow(
+		`SELECT path, name, is_dir, size, files, dirs, ext, mod_time FROM nodes WHERE scan_id = ? AND path = ?`,
+		scanID, path,
+	)
+	var n model.Node
+	var isDir int
+	if err := row.Scan(&n.Path, &n.Name, &isDir, &n.Size, &n.Files, &n.Dirs, &n.Ext, &n.ModTime); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	n.IsDir = isDir != 0
+	return &n, nil
+}
+
+// NodeAt returns a single node by exact path within the latest scan.
+func (s *Store) NodeAt(path string) (*model.Node, error) {
+	scanID, _, err := s.latestScanRow()
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return s.nodeAt(scanID, path)
+}
+
+// Children returns the immediate children of path within the latest scan,
+// sorted largest-first. If path is empty, the scan root's children are returned.
+func (s *Store) Children(path string) ([]model.Node, error) {
+	scanID, rootPath, err := s.latestScanRow()
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []model.Node{}, nil
+		}
+		return nil, err
+	}
+	if path == "" {
+		path = rootPath
+	}
+
+	rows, err := s.db.Query(
+		`SELECT path, name, is_dir, size, files, dirs, ext, mod_time FROM nodes
+		 WHERE scan_id = ? AND parent_path = ? ORDER BY size DESC`,
+		scanID, path,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.Node{}
+	for rows.Next() {
+		var n model.Node
+		var isDir int
+		if err := rows.Scan(&n.Path, &n.Name, &isDir, &n.Size, &n.Files, &n.Dirs, &n.Ext, &n.ModTime); err != nil {
+			return nil, err
+		}
+		n.IsDir = isDir != 0
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// FileTypes returns size/count aggregated by extension for the latest scan.
+func (s *Store) FileTypes(limit int) ([]model.FileTypeStat, error) {
+	scanID, _, err := s.latestScanRow()
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []model.FileTypeStat{}, nil
+		}
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	rows, err := s.db.Query(
+		`SELECT ext, SUM(size) AS total, COUNT(*) AS cnt FROM nodes
+		 WHERE scan_id = ? AND is_dir = 0 GROUP BY ext ORDER BY total DESC LIMIT ?`,
+		scanID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.FileTypeStat{}
+	for rows.Next() {
+		var fs model.FileTypeStat
+		if err := rows.Scan(&fs.Ext, &fs.Size, &fs.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, fs)
+	}
+	return out, rows.Err()
+}

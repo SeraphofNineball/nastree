@@ -10,6 +10,8 @@ and serve a web dashboard.
 
 ## Run it
 
+### Option A: build from source (dev machine)
+
 Edit `docker-compose.yml` and point the volume at the path you want scanned:
 
 ```yaml
@@ -24,9 +26,26 @@ Then:
 docker compose up -d --build
 ```
 
-Open `http://<host>:8080`. The first scan starts immediately and can take a
-while on a large share; the dashboard shows a "no scan yet" message until it
-finishes.
+### Option B: pull the published image (NAS)
+
+Every push to `main` builds a multi-arch (amd64 + arm64) image and publishes
+it to GitHub Container Registry via `.github/workflows/docker-publish.yml`.
+
+On the NAS, copy just `docker-compose.nas.yml` (no source checkout needed),
+edit its volume path, then:
+
+```sh
+# only needed if the GitHub repo/package is private:
+docker login ghcr.io -u <your-github-username>
+
+docker compose -f docker-compose.nas.yml up -d
+```
+
+To pull a newer version later: `docker compose -f docker-compose.nas.yml pull && docker compose -f docker-compose.nas.yml up -d`.
+
+Open `http://<host>:8080` either way. The first scan starts immediately and
+can take a while on a large share; the dashboard shows a "no scan yet"
+message until it finishes.
 
 ## Configuration (environment variables)
 

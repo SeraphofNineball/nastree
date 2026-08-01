@@ -1,7 +1,6 @@
 # Deploy on the NAS with just this file — no source checkout needed.
-# 1. docker login ghcr.io  (only required if the GitHub repo/package is private)
-# 2. Edit the volume path below to point at the share you want scanned.
-# 3. docker compose -f docker-compose.nas.yml up -d
+# 1. Edit the volume path below to point at the share you want scanned.
+# 2. docker compose -f docker-compose.nas.yml up -d
 services:
   nastree:
     image: ghcr.io/seraphofnineball/nastree:latest

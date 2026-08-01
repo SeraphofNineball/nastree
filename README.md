@@ -35,9 +35,6 @@ On the NAS, copy just `docker-compose.nas.yml` (no source checkout needed),
 edit its volume path, then:
 
 ```sh
-# only needed if the GitHub repo/package is private:
-docker login ghcr.io -u <your-github-username>
-
 docker compose -f docker-compose.nas.yml up -d
 ```
 

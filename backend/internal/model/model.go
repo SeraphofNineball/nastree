@@ -12,6 +12,9 @@ type Node struct {
 	Dirs      int64  `json:"dirs"`      // recursive dir count (dirs only)
 	Ext       string `json:"ext,omitempty"`
 	ModTime   int64  `json:"modTime"` // unix seconds
+
+	// Children is only populated by the nested Tree() query, for treemap rendering.
+	Children []*Node `json:"children,omitempty"`
 }
 
 // FileTypeStat aggregates size/count by extension across a scan.

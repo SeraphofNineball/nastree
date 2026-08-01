@@ -51,6 +51,10 @@ function toggle() {
 
 function select() {
   emit('navigate', props.node.path)
+  // clicking a row both navigates and reveals its contents, mirroring the treemap's one-click drill-in
+  if (hasChildren.value && !expanded.value) {
+    expandedPaths.add(props.node.path)
+  }
 }
 
 function onChildNavigate(path: string) {

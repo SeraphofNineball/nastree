@@ -7,6 +7,7 @@ export interface TreeNode {
   dirs: number
   ext?: string
   modTime: number
+  children?: TreeNode[]
 }
 
 export interface FileTypeStat {

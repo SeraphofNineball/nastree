@@ -34,6 +34,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/status", s.handleStatus)
 	s.mux.HandleFunc("GET /api/node", s.handleNode)
 	s.mux.HandleFunc("GET /api/children", s.handleChildren)
+	s.mux.HandleFunc("GET /api/tree", s.handleTree)
 	s.mux.HandleFunc("GET /api/filetypes", s.handleFileTypes)
 	s.mux.HandleFunc("POST /api/scan/trigger", s.handleTrigger)
 }
@@ -92,6 +93,22 @@ func (s *Server) handleChildren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, children)
+}
+
+const treeMaxNodes = 2000
+
+func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	tree, err := s.store.Tree(path, treeMaxNodes)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if tree == nil {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	writeJSON(w, tree)
 }
 
 func (s *Server) handleFileTypes(w http.ResponseWriter, r *http.Request) {

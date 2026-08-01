@@ -13,6 +13,7 @@ export const api = {
   status: () => getJSON<ScanStatus | { running: boolean; scanId: null }>('/api/status'),
   node: (path: string) => getJSON<TreeNode>(`/api/node?path=${encodeURIComponent(path)}`),
   children: (path: string) => getJSON<TreeNode[]>(`/api/children?path=${encodeURIComponent(path)}`),
+  tree: (path: string) => getJSON<TreeNode>(`/api/tree?path=${encodeURIComponent(path)}`),
   fileTypes: () => getJSON<FileTypeStat[]>('/api/filetypes'),
   triggerScan: async () => {
     const res = await fetch('/api/scan/trigger', { method: 'POST' })

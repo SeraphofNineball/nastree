@@ -13,32 +13,63 @@ import { currentTheme } from '../lib/theme'
 use([EchartsTreemap, TooltipComponent, CanvasRenderer])
 
 const props = defineProps<{
-  children: TreeNode[]
+  root: TreeNode | null
   fileTypes: FileTypeStat[]
 }>()
 
 const emit = defineEmits<{ enter: [path: string] }>()
 
-const option = computed(() => {
-  void currentTheme.value // re-resolve CSS colors whenever the theme changes
-  const extColors = buildExtColorMap(props.fileTypes)
-  const data = props.children.map((n) => ({
+// Below this fraction of the root's total size, a region's name isn't worth labeling -
+// keeps small nested boxes as pure color, like WizTree's mosaic.
+const LABEL_MIN_FRACTION = 0.008
+
+interface EchartsTreemapDatum {
+  name: string
+  value: number
+  path: string
+  isDir: boolean
+  files: number
+  dirs: number
+  ext?: string
+  itemStyle: { color: string }
+  label?: { show: boolean }
+  children?: EchartsTreemapDatum[]
+}
+
+function mapNode(n: TreeNode, extColors: Map<string, string>, labelMinSize: number): EchartsTreemapDatum {
+  const datum: EchartsTreemapDatum = {
     name: n.name,
     value: n.size,
     path: n.path,
     isDir: n.isDir,
-    itemStyle: {
-      color: n.isDir ? directoryColor() : colorForExt(n.ext, extColors),
-    },
-  }))
+    files: n.files,
+    dirs: n.dirs,
+    ext: n.ext,
+    itemStyle: { color: n.isDir ? directoryColor() : colorForExt(n.ext, extColors) },
+  }
+  if (!n.isDir || n.size < labelMinSize) {
+    datum.label = { show: false }
+  }
+  if (n.children?.length) {
+    datum.children = n.children.map((c) => mapNode(c, extColors, labelMinSize))
+  }
+  return datum
+}
+
+const option = computed(() => {
+  void currentTheme.value
+  const extColors = buildExtColorMap(props.fileTypes)
+  const topChildren = props.root?.children ?? []
+  const total = topChildren.reduce((sum, n) => sum + n.size, 0)
+  const labelMinSize = total * LABEL_MIN_FRACTION
+  const data = topChildren.map((n) => mapNode(n, extColors, labelMinSize))
 
   return {
     tooltip: {
       formatter: (info: any) => {
-        const n: TreeNode | undefined = props.children.find((c) => c.path === info.data.path)
-        if (!n) return info.name
-        const kind = n.isDir ? `${n.files} files, ${n.dirs} folders` : n.ext || 'file'
-        return `<strong>${n.name}</strong><br/>${formatBytes(n.size)} &middot; ${kind}`
+        const d = info.data as EchartsTreemapDatum
+        const kind = d.isDir ? `${d.files} files, ${d.dirs} folders` : d.ext || 'file'
+        return `<strong>${d.name}</strong><br/>${formatBytes(d.value)} &middot; ${kind}`
       },
     },
     series: [
@@ -50,15 +81,18 @@ const option = computed(() => {
         upperLabel: { show: false },
         label: {
           show: true,
-          formatter: (p: any) => `${p.name}\n${formatBytes(p.value)}`,
+          position: 'insideTopLeft',
+          formatter: (p: any) => p.name,
+          fontSize: 11,
           color: '#fff',
-          textShadowColor: 'rgba(0,0,0,0.6)',
-          textShadowBlur: 2,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          padding: [2, 4],
+          overflow: 'truncate',
         },
         itemStyle: {
           borderColor: surfaceColor(),
-          borderWidth: 2,
-          gapWidth: 2,
+          borderWidth: 1,
+          gapWidth: 1,
         },
         data,
       },
@@ -75,7 +109,7 @@ function onClick(params: any) {
 
 <template>
   <div class="treemap-wrap">
-    <VChart v-if="children.length" class="chart" :option="option" autoresize @click="onClick" />
+    <VChart v-if="root?.children?.length" class="chart" :option="option" autoresize @click="onClick" />
     <div v-else class="empty">This folder has no items.</div>
   </div>
 </template>

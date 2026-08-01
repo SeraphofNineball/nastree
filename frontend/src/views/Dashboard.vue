@@ -15,6 +15,7 @@ import PieChart from '../components/PieChart.vue'
 const status = ref<ScanStatus | null>(null)
 const currentPath = ref('')
 const children = ref<TreeNode[]>([])
+const treeData = ref<TreeNode | null>(null)
 const fileTypes = ref<FileTypeStat[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -41,8 +42,9 @@ async function loadPath(path: string) {
   loading.value = true
   error.value = ''
   try {
-    const kids = await api.children(path)
+    const [kids, tree] = await Promise.all([api.children(path), api.tree(path)])
     children.value = kids
+    treeData.value = tree
     currentPath.value = path || status.value?.rootPath || ''
     if (status.value?.rootPath) {
       expandAncestors(currentPath.value, status.value.rootPath)
@@ -131,8 +133,8 @@ onUnmounted(() => {
       </div>
 
       <div class="treemap-pane">
-        <TreemapChart v-if="vizMode === 'treemap'" :children="children" :file-types="fileTypes" @enter="navigate" />
-        <PieChart v-else :children="children" :file-types="fileTypes" />
+        <TreemapChart v-if="vizMode === 'treemap'" :root="treeData" :file-types="fileTypes" @enter="navigate" />
+        <PieChart v-else :children="children" :file-types="fileTypes" @enter="navigate" />
       </div>
     </template>
   </div>

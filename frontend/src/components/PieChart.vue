@@ -17,6 +17,8 @@ const props = defineProps<{
   fileTypes: FileTypeStat[]
 }>()
 
+const emit = defineEmits<{ enter: [path: string] }>()
+
 const MAX_SLICES = 12
 const MIN_SLICE_FRACTION = 0.015 // slices under 1.5% of the total fold into "Other" too
 
@@ -41,10 +43,12 @@ const option = computed(() => {
   const data = top.map((n) => ({
     name: n.name,
     value: n.size,
+    path: n.path,
+    isDir: n.isDir,
     itemStyle: { color: n.isDir ? directoryColor() : colorForExt(n.ext, extColors) },
   }))
   if (restTotal > 0) {
-    data.push({ name: `Other (${rest.length})`, value: restTotal, itemStyle: { color: otherColor() } })
+    data.push({ name: `Other (${rest.length})`, value: restTotal, path: '', isDir: false, itemStyle: { color: otherColor() } })
   }
 
   return {
@@ -80,11 +84,17 @@ const option = computed(() => {
     ],
   }
 })
+
+function onClick(params: any) {
+  if (params?.data?.isDir && params?.data?.path) {
+    emit('enter', params.data.path)
+  }
+}
 </script>
 
 <template>
   <div class="pie-wrap">
-    <VChart v-if="children.length" class="chart" :option="option" autoresize />
+    <VChart v-if="children.length" class="chart" :option="option" autoresize @click="onClick" />
     <div v-else class="empty">This folder has no items.</div>
   </div>
 </template>

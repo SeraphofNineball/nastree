@@ -229,7 +229,10 @@ func (s *Store) Children(path string) ([]model.Node, error) {
 	if path == "" {
 		path = rootPath
 	}
+	return s.childrenByScan(scanID, path)
+}
 
+func (s *Store) childrenByScan(scanID int64, path string) ([]model.Node, error) {
 	rows, err := s.db.Query(
 		`SELECT path, name, is_dir, size, files, dirs, ext, mod_time FROM nodes
 		 WHERE scan_id = ? AND parent_path = ? ORDER BY size DESC`,
@@ -251,6 +254,56 @@ func (s *Store) Children(path string) ([]model.Node, error) {
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// Tree returns a nested subtree rooted at path, for treemap rendering.
+// It greedily expands the largest not-yet-expanded directory first, so the
+// biggest branches get the most visual detail, until maxNodes is reached -
+// smaller branches are left as a single unexpanded box.
+func (s *Store) Tree(path string, maxNodes int) (*model.Node, error) {
+	scanID, rootPath, err := s.latestScanRow()
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if path == "" {
+		path = rootPath
+	}
+	root, err := s.nodeAt(scanID, path)
+	if err != nil || root == nil {
+		return root, err
+	}
+
+	count := 1
+	frontier := []*model.Node{root}
+	for len(frontier) > 0 && count < maxNodes {
+		best := -1
+		for i, n := range frontier {
+			if n.IsDir && n.Dirs+n.Files > 0 && (best == -1 || n.Size > frontier[best].Size) {
+				best = i
+			}
+		}
+		if best == -1 {
+			break
+		}
+		node := frontier[best]
+		frontier = append(frontier[:best], frontier[best+1:]...)
+
+		kids, err := s.childrenByScan(scanID, node.Path)
+		if err != nil {
+			return nil, err
+		}
+		node.Children = make([]*model.Node, len(kids))
+		for i := range kids {
+			k := kids[i]
+			node.Children[i] = &k
+			count++
+			frontier = append(frontier, node.Children[i])
+		}
+	}
+	return root, nil
 }
 
 // FileTypes returns size/count aggregated by extension for the latest scan.

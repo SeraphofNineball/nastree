@@ -8,6 +8,7 @@ import VChart from 'vue-echarts'
 import type { TreeNode, FileTypeStat } from '../types'
 import { buildExtColorMap, colorForExt, directoryColor, surfaceColor } from '../lib/colors'
 import { formatBytes } from '../lib/format'
+import { currentTheme } from '../lib/theme'
 
 use([EchartsTreemap, TooltipComponent, CanvasRenderer])
 
@@ -19,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{ enter: [path: string] }>()
 
 const option = computed(() => {
+  void currentTheme.value // re-resolve CSS colors whenever the theme changes
   const extColors = buildExtColorMap(props.fileTypes)
   const data = props.children.map((n) => ({
     name: n.name,

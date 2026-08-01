@@ -21,6 +21,10 @@ export function surfaceColor(): string {
   return cssVar('--surface-2') || '#f9f9f7'
 }
 
+export function textSecondaryColor(): string {
+  return cssVar('--text-secondary') || '#52514e'
+}
+
 /** Stable ext -> color assignment: top 7 extensions by global size get their
  *  own hue, everything else folds into a shared "other" gray. */
 export function buildExtColorMap(fileTypes: FileTypeStat[]): Map<string, string> {

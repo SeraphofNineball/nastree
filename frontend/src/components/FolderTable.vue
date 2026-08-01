@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { TreeNode } from '../types'
 import { formatBytes, formatPercent, formatDateFromUnix } from '../lib/format'
+import { useSort, type SortDir } from '../lib/sort'
 
 const props = defineProps<{
   children: TreeNode[]
@@ -10,6 +11,36 @@ const props = defineProps<{
 const emit = defineEmits<{ enter: [path: string] }>()
 
 const parentTotal = computed(() => props.children.reduce((sum, n) => sum + n.size, 0))
+
+const childrenRef = computed(() => props.children)
+function getter(n: TreeNode, key: string): string | number {
+  switch (key) {
+    case 'name':
+      return n.name.toLowerCase()
+    case 'size':
+      return n.size
+    case 'items':
+      return n.files + n.dirs
+    case 'files':
+      return n.files
+    case 'dirs':
+      return n.dirs
+    case 'modTime':
+      return n.modTime
+    default:
+      return 0
+  }
+}
+const { sortKey, sortDir, toggle, sorted } = useSort(childrenRef, getter, 'size', 'desc')
+
+const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left' }[] = [
+  { key: 'name', label: 'Name', defaultDir: 'asc', align: 'left' },
+  { key: 'size', label: 'Size', defaultDir: 'desc' },
+  { key: 'items', label: 'Items', defaultDir: 'desc' },
+  { key: 'files', label: 'Files', defaultDir: 'desc' },
+  { key: 'dirs', label: 'Folders', defaultDir: 'desc' },
+  { key: 'modTime', label: 'Modified', defaultDir: 'desc' },
+]
 </script>
 
 <template>
@@ -17,18 +48,21 @@ const parentTotal = computed(() => props.children.reduce((sum, n) => sum + n.siz
     <table>
       <thead>
         <tr>
-          <th class="name-col">Name</th>
-          <th>% of Parent</th>
-          <th class="num">Size</th>
-          <th class="num">Items</th>
-          <th class="num">Files</th>
-          <th class="num">Folders</th>
-          <th>Modified</th>
+          <th
+            v-for="col in columns"
+            :key="col.key"
+            :class="{ 'name-col': col.align === 'left', sortable: true, active: sortKey === col.key }"
+            @click="toggle(col.key, col.defaultDir)"
+          >
+            {{ col.label }}
+            <span v-if="sortKey === col.key" class="arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+          </th>
+          <th class="pct-col">% of Parent</th>
         </tr>
       </thead>
       <tbody>
         <tr
-          v-for="n in children"
+          v-for="n in sorted"
           :key="n.path"
           :class="{ clickable: n.isDir }"
           @click="n.isDir && emit('enter', n.path)"
@@ -36,17 +70,17 @@ const parentTotal = computed(() => props.children.reduce((sum, n) => sum + n.siz
           <td class="name-col">
             <span class="icon">{{ n.isDir ? '📁' : '📄' }}</span>{{ n.name }}
           </td>
+          <td class="num">{{ formatBytes(n.size) }}</td>
+          <td class="num">{{ n.isDir ? n.files + n.dirs : '' }}</td>
+          <td class="num">{{ n.isDir ? n.files : '' }}</td>
+          <td class="num">{{ n.isDir ? n.dirs : '' }}</td>
+          <td>{{ formatDateFromUnix(n.modTime) }}</td>
           <td>
             <div class="pct-bar">
               <div class="pct-fill" :style="{ width: formatPercent(n.size, parentTotal) }" />
               <span class="pct-label">{{ formatPercent(n.size, parentTotal) }}</span>
             </div>
           </td>
-          <td class="num">{{ formatBytes(n.size) }}</td>
-          <td class="num">{{ n.isDir ? n.files + n.dirs : '' }}</td>
-          <td class="num">{{ n.isDir ? n.files : '' }}</td>
-          <td class="num">{{ n.isDir ? n.dirs : '' }}</td>
-          <td>{{ formatDateFromUnix(n.modTime) }}</td>
         </tr>
         <tr v-if="!children.length">
           <td colspan="7" class="empty">This folder has no items.</td>
@@ -80,6 +114,20 @@ thead th {
 }
 thead th.name-col {
   text-align: left;
+}
+thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+thead th.sortable:hover {
+  color: var(--text-primary);
+}
+thead th.active {
+  color: var(--text-primary);
+}
+.arrow {
+  font-size: 9px;
+  margin-left: 2px;
 }
 td {
   padding: 6px 10px;

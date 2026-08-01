@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ScanStatus } from '../types'
 import { formatBytes, formatPercent, formatDate, formatDuration } from '../lib/format'
+import ThemeSwitcher from './ThemeSwitcher.vue'
 
 const props = defineProps<{
   status: ScanStatus | null
@@ -32,6 +33,7 @@ const used = computed(() => (props.status ? props.status.diskTotal - props.statu
       <span class="value">{{ formatDate(status.finishedAt) }} ({{ formatDuration(status.durationMs) }})</span>
     </div>
     <div class="spacer" />
+    <ThemeSwitcher />
     <button class="rescan" :disabled="scanning" @click="emit('rescan')">
       {{ scanning ? 'Scanning…' : 'Rescan' }}
     </button>

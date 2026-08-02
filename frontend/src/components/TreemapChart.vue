@@ -84,8 +84,12 @@ const option = computed(() => {
           show: true,
           height: 22,
           formatter: (p: any) => `${p.name}  (${formatBytes(p.data.size ?? grandTotal)})`,
-          color: isLight ? '#1a1a1a' : '#fff',
-          backgroundColor: isLight ? 'rgba(255,255,255,0.85)' : 'rgba(20,20,20,0.85)',
+          color: '#fff',
+          backgroundColor: isLight ? 'rgba(128,128,128,0.9)' : 'rgba(20,20,20,0.85)',
+          // a faint outline on each band so stacked levels (folder within folder)
+          // read as distinct strips instead of merging into one solid block
+          borderColor: 'rgba(255,255,255,0.18)',
+          borderWidth: 1,
           fontSize: 12,
           padding: [4, 0, 0, 6],
         },

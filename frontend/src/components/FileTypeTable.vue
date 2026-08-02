@@ -12,6 +12,12 @@ import {
   customFolderColor,
   setFolderColor,
   resetFolderColor,
+  customGradientTop,
+  setGradientTop,
+  resetGradientTop,
+  customGradientBottom,
+  setGradientBottom,
+  resetGradientBottom,
 } from '../lib/colors'
 import { formatBytes, formatPercent } from '../lib/format'
 import { currentTheme } from '../lib/theme'
@@ -42,17 +48,34 @@ function getter(ft: FileTypeStat, key: string): string | number {
 }
 const { sortKey, sortDir, toggle, sorted } = useSort(fileTypesRef, getter, 'size', 'desc')
 
-const hasCustomColors = computed(() => Object.keys(customExtColors).length > 0 || customFolderColor.value !== null)
+const hasCustomColors = computed(
+  () =>
+    Object.keys(customExtColors).length > 0 ||
+    customFolderColor.value !== null ||
+    customGradientTop.value !== null ||
+    customGradientBottom.value !== null,
+)
 function onPick(ext: string, e: Event) {
   setExtColor(ext, (e.target as HTMLInputElement).value)
 }
 function onPickFolder(e: Event) {
   setFolderColor((e.target as HTMLInputElement).value)
 }
+function onPickGradientTop(e: Event) {
+  setGradientTop((e.target as HTMLInputElement).value)
+}
+function onPickGradientBottom(e: Event) {
+  setGradientBottom((e.target as HTMLInputElement).value)
+}
 function resetAllColors() {
   resetAllExtColors()
   resetFolderColor()
+  resetGradientTop()
+  resetGradientBottom()
 }
+
+const gradientTopValue = computed(() => customGradientTop.value ?? '#ffffff')
+const gradientBottomValue = computed(() => customGradientBottom.value ?? (currentTheme.value === 'light' ? '#808080' : '#000000'))
 
 const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left' }[] = [
   { key: 'ext', label: 'Extension', defaultDir: 'asc', align: 'left' },
@@ -100,6 +123,46 @@ const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left'
           <td class="num">—</td>
           <td class="reset-col">
             <button v-if="customFolderColor !== null" class="reset-one-btn" title="Reset to default color" @click="resetFolderColor">
+              ↺
+            </button>
+          </td>
+        </tr>
+        <tr class="folder-row">
+          <td class="name-col">
+            <input
+              type="color"
+              class="swatch-picker"
+              :value="gradientTopValue"
+              title="Pick the box gradient's highlight (top) color"
+              @input="onPickGradientTop"
+            />
+            Gradient top
+          </td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="reset-col">
+            <button v-if="customGradientTop !== null" class="reset-one-btn" title="Reset to default color" @click="resetGradientTop">
+              ↺
+            </button>
+          </td>
+        </tr>
+        <tr class="folder-row">
+          <td class="name-col">
+            <input
+              type="color"
+              class="swatch-picker"
+              :value="gradientBottomValue"
+              title="Pick the box gradient's shadow (bottom) color"
+              @input="onPickGradientBottom"
+            />
+            Gradient bottom
+          </td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="reset-col">
+            <button v-if="customGradientBottom !== null" class="reset-one-btn" title="Reset to default color" @click="resetGradientBottom">
               ↺
             </button>
           </td>

@@ -51,6 +51,34 @@ export function resetFolderColor() {
   localStorage.removeItem(FOLDER_COLOR_STORAGE_KEY)
 }
 
+const GRADIENT_TOP_STORAGE_KEY = 'nastree-gradient-top'
+const GRADIENT_BOTTOM_STORAGE_KEY = 'nastree-gradient-bottom'
+
+/** User-chosen overrides for the treemap box gradient's highlight (top) and
+ *  shadow (bottom) stops. Null means "use the computed theme default". */
+export const customGradientTop = ref<string | null>(localStorage.getItem(GRADIENT_TOP_STORAGE_KEY))
+export const customGradientBottom = ref<string | null>(localStorage.getItem(GRADIENT_BOTTOM_STORAGE_KEY))
+
+export function setGradientTop(color: string) {
+  customGradientTop.value = color
+  localStorage.setItem(GRADIENT_TOP_STORAGE_KEY, color)
+}
+
+export function resetGradientTop() {
+  customGradientTop.value = null
+  localStorage.removeItem(GRADIENT_TOP_STORAGE_KEY)
+}
+
+export function setGradientBottom(color: string) {
+  customGradientBottom.value = color
+  localStorage.setItem(GRADIENT_BOTTOM_STORAGE_KEY, color)
+}
+
+export function resetGradientBottom() {
+  customGradientBottom.value = null
+  localStorage.removeItem(GRADIENT_BOTTOM_STORAGE_KEY)
+}
+
 function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
@@ -103,11 +131,14 @@ function blendToward(hex: string, target: number, amount: number): string {
 }
 
 /** A subtle top-lighter/bottom-darker vertical gradient for treemap boxes,
- *  for the glossy embossed look WizTree uses instead of flat fills. The shadow
- *  stop is a flat mid-grey (#808080) on the light theme - black there reads
- *  as muddy against a light page - and a near-black blend on dark themes. */
+ *  for the glossy embossed look WizTree uses instead of flat fills. Defaults:
+ *  the shadow stop is a flat mid-grey (#808080) on the light theme - black
+ *  there reads as muddy against a light page - and a near-black blend on dark
+ *  themes. Either end can be overridden with a flat user-chosen color instead. */
 export function treemapGradient(hex: string) {
   const isLight = currentTheme.value === 'light'
+  const top = customGradientTop.value ?? blendToward(hex, 255, 0.22)
+  const bottom = customGradientBottom.value ?? (isLight ? '#808080' : blendToward(hex, 0, 0.18))
   return {
     type: 'linear' as const,
     x: 0,
@@ -115,8 +146,8 @@ export function treemapGradient(hex: string) {
     x2: 0,
     y2: 1,
     colorStops: [
-      { offset: 0, color: blendToward(hex, 255, 0.22) },
-      { offset: 1, color: isLight ? '#808080' : blendToward(hex, 0, 0.18) },
+      { offset: 0, color: top },
+      { offset: 1, color: bottom },
     ],
   }
 }

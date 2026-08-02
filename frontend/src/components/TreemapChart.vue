@@ -59,6 +59,7 @@ const option = computed(() => {
   // ECharts wraps top-level data in an implicit synthetic root for layout purposes;
   // that node has none of our custom fields, so its own upperLabel needs a fallback.
   const grandTotal = topChildren.reduce((sum, n) => sum + n.size, 0)
+  const isLight = currentTheme.value === 'light'
 
   return {
     tooltip: {
@@ -83,8 +84,8 @@ const option = computed(() => {
           show: true,
           height: 22,
           formatter: (p: any) => `${p.name}  (${formatBytes(p.data.size ?? grandTotal)})`,
-          color: '#fff',
-          backgroundColor: 'rgba(20,20,20,0.85)',
+          color: isLight ? '#1a1a1a' : '#fff',
+          backgroundColor: isLight ? 'rgba(255,255,255,0.85)' : 'rgba(20,20,20,0.85)',
           fontSize: 12,
           padding: [4, 0, 0, 6],
         },

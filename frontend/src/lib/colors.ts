@@ -89,16 +89,12 @@ export function colorForExt(ext: string | undefined, map: Map<string, string>): 
   return customExtColors[ext] ?? map.get(ext) ?? otherColor()
 }
 
-/** Shifts a #rrggbb color toward white (positive) or a shadow tone (negative), amount in 0..1.
- *  The shadow tone is near-black on dark themes, but a mid-grey on the light theme -
- *  blending toward black there reads as muddy against a light page. */
-function shadeColor(hex: string, amount: number): string {
+/** Blends a #rrggbb color toward a target grey level (0-255), by `amount` in 0..1. */
+function blendToward(hex: string, target: number, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16)
-  const target = amount >= 0 ? 255 : currentTheme.value === 'light' ? 130 : 0
-  const p = Math.abs(amount)
   const channel = (shift: number) => {
     const c = (num >> shift) & 0xff
-    return Math.round((target - c) * p) + c
+    return Math.round((target - c) * amount) + c
   }
   const r = channel(16)
   const g = channel(8)
@@ -107,8 +103,11 @@ function shadeColor(hex: string, amount: number): string {
 }
 
 /** A subtle top-lighter/bottom-darker vertical gradient for treemap boxes,
- *  for the glossy embossed look WizTree uses instead of flat fills. */
+ *  for the glossy embossed look WizTree uses instead of flat fills. The shadow
+ *  stop is a flat mid-grey (#808080) on the light theme - black there reads
+ *  as muddy against a light page - and a near-black blend on dark themes. */
 export function treemapGradient(hex: string) {
+  const isLight = currentTheme.value === 'light'
   return {
     type: 'linear' as const,
     x: 0,
@@ -116,8 +115,8 @@ export function treemapGradient(hex: string) {
     x2: 0,
     y2: 1,
     colorStops: [
-      { offset: 0, color: shadeColor(hex, 0.22) },
-      { offset: 1, color: shadeColor(hex, -0.18) },
+      { offset: 0, color: blendToward(hex, 255, 0.22) },
+      { offset: 1, color: isLight ? '#808080' : blendToward(hex, 0, 0.18) },
     ],
   }
 }

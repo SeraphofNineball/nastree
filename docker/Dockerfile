@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ---- backend build ----
-FROM golang:1.23-alpine AS backend
+FROM golang:1.25-alpine AS backend
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
@@ -15,7 +15,7 @@ COPY backend/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /nastree ./cmd/server
 
 # ---- runtime ----
-FROM alpine:3.20
+FROM alpine:3.22
 RUN apk add --no-cache tzdata
 WORKDIR /app
 COPY --from=backend /nastree ./nastree

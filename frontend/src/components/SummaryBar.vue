@@ -7,9 +7,10 @@ import ThemeSwitcher from './ThemeSwitcher.vue'
 const props = defineProps<{
   status: ScanStatus | null
   scanning: boolean
+  focusMode: boolean
 }>()
 
-const emit = defineEmits<{ rescan: [] }>()
+const emit = defineEmits<{ rescan: []; 'toggle-focus': [] }>()
 
 const used = computed(() => (props.status ? props.status.diskTotal - props.status.diskFree : 0))
 </script>
@@ -34,6 +35,9 @@ const used = computed(() => (props.status ? props.status.diskTotal - props.statu
     </div>
     <div class="spacer" />
     <ThemeSwitcher />
+    <button class="focus-toggle" @click="emit('toggle-focus')">
+      {{ focusMode ? 'Dashboard View' : 'Treemap / Pie View' }}
+    </button>
     <button class="rescan" :disabled="scanning" @click="emit('rescan')">
       {{ scanning ? 'Scanning…' : 'Rescan' }}
     </button>
@@ -85,5 +89,18 @@ const used = computed(() => (props.status ? props.status.diskTotal - props.statu
 .rescan:disabled {
   opacity: 0.6;
   cursor: default;
+}
+.focus-toggle {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.focus-toggle:hover {
+  background: var(--surface-1);
 }
 </style>

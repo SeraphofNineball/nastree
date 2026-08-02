@@ -6,7 +6,7 @@ import { TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import type { TreeNode, FileTypeStat } from '../types'
-import { buildExtColorMap, colorForExt, directoryColor, surfaceColor } from '../lib/colors'
+import { buildExtColorMap, colorForExt, directoryColor, treemapGradient } from '../lib/colors'
 import { formatBytes } from '../lib/format'
 import { currentTheme } from '../lib/theme'
 
@@ -19,39 +19,34 @@ const props = defineProps<{
 
 const emit = defineEmits<{ enter: [path: string] }>()
 
-// Below this fraction of the root's total size, a region's name isn't worth labeling -
-// keeps small nested boxes as pure color, like WizTree's mosaic.
-const LABEL_MIN_FRACTION = 0.008
-
 interface EchartsTreemapDatum {
   name: string
-  value: number
+  value: number // sqrt(size) - drives box area, so huge outliers don't crush everything else
+  size: number // true byte size - for tooltip/label display
   path: string
   isDir: boolean
   files: number
   dirs: number
   ext?: string
-  itemStyle: { color: string }
-  label?: { show: boolean }
+  itemStyle: { color: ReturnType<typeof treemapGradient> }
   children?: EchartsTreemapDatum[]
 }
 
-function mapNode(n: TreeNode, extColors: Map<string, string>, labelMinSize: number): EchartsTreemapDatum {
+function mapNode(n: TreeNode, extColors: Map<string, string>): EchartsTreemapDatum {
+  const baseColor = n.isDir ? directoryColor() : colorForExt(n.ext, extColors)
   const datum: EchartsTreemapDatum = {
     name: n.name,
-    value: n.size,
+    value: Math.sqrt(n.size),
+    size: n.size,
     path: n.path,
     isDir: n.isDir,
     files: n.files,
     dirs: n.dirs,
     ext: n.ext,
-    itemStyle: { color: n.isDir ? directoryColor() : colorForExt(n.ext, extColors) },
-  }
-  if (!n.isDir || n.size < labelMinSize) {
-    datum.label = { show: false }
+    itemStyle: { color: treemapGradient(baseColor) },
   }
   if (n.children?.length) {
-    datum.children = n.children.map((c) => mapNode(c, extColors, labelMinSize))
+    datum.children = n.children.map((c) => mapNode(c, extColors))
   }
   return datum
 }
@@ -60,16 +55,17 @@ const option = computed(() => {
   void currentTheme.value
   const extColors = buildExtColorMap(props.fileTypes)
   const topChildren = props.root?.children ?? []
-  const total = topChildren.reduce((sum, n) => sum + n.size, 0)
-  const labelMinSize = total * LABEL_MIN_FRACTION
-  const data = topChildren.map((n) => mapNode(n, extColors, labelMinSize))
+  const data = topChildren.map((n) => mapNode(n, extColors))
+  // ECharts wraps top-level data in an implicit synthetic root for layout purposes;
+  // that node has none of our custom fields, so its own upperLabel needs a fallback.
+  const grandTotal = topChildren.reduce((sum, n) => sum + n.size, 0)
 
   return {
     tooltip: {
       formatter: (info: any) => {
         const d = info.data as EchartsTreemapDatum
         const kind = d.isDir ? `${d.files} files, ${d.dirs} folders` : d.ext || 'file'
-        return `<strong>${d.name}</strong><br/>${formatBytes(d.value)} &middot; ${kind}`
+        return `<strong>${d.name}</strong><br/>${formatBytes(d.size)} &middot; ${kind}`
       },
     },
     series: [
@@ -78,21 +74,36 @@ const option = computed(() => {
         roam: false,
         nodeClick: false,
         breadcrumb: { show: false },
-        upperLabel: { show: false },
-        label: {
+        // Files (leaf nodes) never get a label - just color, per WizTree's look.
+        label: { show: false },
+        // Folders get a reserved header strip instead, nested per level - this is
+        // what actually produces the "ANIME\" / "DRAGON BALL Z\" stacked band look;
+        // ECharts only renders it for nodes that have children, so files are unaffected.
+        upperLabel: {
           show: true,
-          position: 'insideTopLeft',
-          formatter: (p: any) => p.name,
-          fontSize: 11,
+          height: 22,
+          formatter: (p: any) => `${p.name}  (${formatBytes(p.data.size ?? grandTotal)})`,
           color: '#fff',
-          backgroundColor: 'rgba(0,0,0,0.55)',
-          padding: [2, 4],
-          overflow: 'truncate',
+          backgroundColor: 'rgba(20,20,20,0.85)',
+          fontSize: 12,
+          padding: [4, 0, 0, 6],
         },
+        // Once a folder's own box would render this small, stop subdividing it into
+        // children - render it as one solid block instead of crushing its contents
+        // into unreadable slivers.
+        childrenVisibleMin: 6000,
+        // Nodes smaller than this many px^2 aren't drawn as their own rect at all.
+        visibleMin: 30,
         itemStyle: {
-          borderColor: surfaceColor(),
-          borderWidth: 1,
-          gapWidth: 1,
+          borderColor: 'rgba(255,255,255,0.08)',
+          borderWidth: 0.5,
+          gapWidth: 0,
+        },
+        emphasis: {
+          itemStyle: {
+            borderColor: '#ffffff',
+            borderWidth: 2,
+          },
         },
         data,
       },

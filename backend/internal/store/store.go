@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS nodes (
 CREATE INDEX IF NOT EXISTS idx_nodes_scan_parent ON nodes(scan_id, parent_path);
 CREATE INDEX IF NOT EXISTS idx_nodes_scan_ext ON nodes(scan_id, ext);
 CREATE INDEX IF NOT EXISTS idx_nodes_scan_path ON nodes(scan_id, path);
+CREATE INDEX IF NOT EXISTS idx_nodes_scan_name_size ON nodes(scan_id, name, size);
 `
 
 func Open(path string) (*Store, error) {
@@ -335,6 +336,95 @@ func (s *Store) FileTypes(limit int) ([]model.FileTypeStat, error) {
 			return nil, err
 		}
 		out = append(out, fs)
+	}
+	return out, rows.Err()
+}
+
+// FileSearchParams configures SearchFiles.
+type FileSearchParams struct {
+	Query          string
+	MatchPath      bool   // match Query against the full path instead of just the name
+	FoldersOnly    bool   // show only directories, excluding files (default: files only)
+	DuplicatesOnly bool   // only return files that share a duplicate key with another file
+	DupMode        string // "name_size" (default) or "name_size_date"
+	Limit          int
+}
+
+// SearchFiles does a flat, scan-wide file search (like WizTree's File View),
+// with optional duplicate detection. Duplicates are matched only among files
+// (never folders) by name+size, or name+size+modTime when DupMode is "name_size_date".
+func (s *Store) SearchFiles(p FileSearchParams) ([]model.Node, error) {
+	scanID, _, err := s.latestScanRow()
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []model.Node{}, nil
+		}
+		return nil, err
+	}
+
+	limit := p.Limit
+	if limit <= 0 || limit > 5000 {
+		limit = 1000
+	}
+
+	dupCols := "name, size"
+	dupJoin := "d.name = n.name AND d.size = n.size"
+	if p.DupMode == "name_size_date" {
+		dupCols = "name, size, mod_time"
+		dupJoin += " AND d.mod_time = n.mod_time"
+	}
+
+	query := `
+		SELECT n.path, n.name, n.is_dir, n.size, n.files, n.dirs, n.ext, n.mod_time, COALESCE(d.cnt, 0) AS dup_count
+		FROM nodes n
+		LEFT JOIN (
+			SELECT ` + dupCols + `, COUNT(*) AS cnt
+			FROM nodes
+			WHERE scan_id = ? AND is_dir = 0
+			GROUP BY ` + dupCols + `
+			HAVING COUNT(*) > 1
+		) d ON ` + dupJoin + `
+		WHERE n.scan_id = ?`
+	args := []any{scanID, scanID}
+
+	if p.FoldersOnly {
+		query += " AND n.is_dir = 1"
+	} else {
+		query += " AND n.is_dir = 0"
+	}
+	if p.DuplicatesOnly {
+		query += " AND d.cnt IS NOT NULL"
+	}
+	if p.Query != "" {
+		like := "%" + p.Query + "%"
+		if p.MatchPath {
+			query += " AND n.path LIKE ?"
+		} else {
+			query += " AND n.name LIKE ?"
+		}
+		args = append(args, like)
+	}
+	query += " ORDER BY n.size DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.Node{}
+	for rows.Next() {
+		var n model.Node
+		var isDir int
+		if err := rows.Scan(&n.Path, &n.Name, &isDir, &n.Size, &n.Files, &n.Dirs, &n.Ext, &n.ModTime, &n.DupCount); err != nil {
+			return nil, err
+		}
+		n.IsDir = isDir != 0
+		if n.DupCount > 0 {
+			n.DupSize = n.Size * n.DupCount
+		}
+		out = append(out, n)
 	}
 	return out, rows.Err()
 }

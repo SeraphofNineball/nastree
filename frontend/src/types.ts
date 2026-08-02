@@ -8,6 +8,8 @@ export interface TreeNode {
   ext?: string
   modTime: number
   children?: TreeNode[]
+  dupCount?: number
+  dupSize?: number
 }
 
 export interface FileTypeStat {

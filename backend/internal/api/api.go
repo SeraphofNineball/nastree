@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"nastree/internal/model"
 	"nastree/internal/store"
@@ -36,6 +37,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/children", s.handleChildren)
 	s.mux.HandleFunc("GET /api/tree", s.handleTree)
 	s.mux.HandleFunc("GET /api/filetypes", s.handleFileTypes)
+	s.mux.HandleFunc("GET /api/files", s.handleFiles)
 	s.mux.HandleFunc("POST /api/scan/trigger", s.handleTrigger)
 }
 
@@ -118,6 +120,25 @@ func (s *Server) handleFileTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, stats)
+}
+
+func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	params := store.FileSearchParams{
+		Query:          q.Get("q"),
+		MatchPath:      q.Get("matchPath") == "true",
+		FoldersOnly:    q.Get("foldersOnly") == "true",
+		DuplicatesOnly: q.Get("duplicatesOnly") == "true",
+		DupMode:        q.Get("dupMode"),
+		Limit:          limit,
+	}
+	results, err := s.store.SearchFiles(params)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, results)
 }
 
 func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {

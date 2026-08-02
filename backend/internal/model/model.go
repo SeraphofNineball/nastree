@@ -15,6 +15,11 @@ type Node struct {
 
 	// Children is only populated by the nested Tree() query, for treemap rendering.
 	Children []*Node `json:"children,omitempty"`
+
+	// DupCount/DupSize are only populated by SearchFiles(), when this file
+	// shares a duplicate key (name+size, or name+size+modTime) with others.
+	DupCount int64 `json:"dupCount,omitempty"`
+	DupSize  int64 `json:"dupSize,omitempty"`
 }
 
 // FileTypeStat aggregates size/count by extension across a scan.

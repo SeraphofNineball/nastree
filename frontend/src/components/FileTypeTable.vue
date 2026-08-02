@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FileTypeStat } from '../types'
-import { buildExtColorMap, colorForExt, customExtColors, setExtColor, resetExtColor, resetAllExtColors } from '../lib/colors'
+import {
+  buildExtColorMap,
+  colorForExt,
+  customExtColors,
+  setExtColor,
+  resetExtColor,
+  resetAllExtColors,
+  directoryColor,
+  customFolderColor,
+  setFolderColor,
+  resetFolderColor,
+} from '../lib/colors'
 import { formatBytes, formatPercent } from '../lib/format'
 import { currentTheme } from '../lib/theme'
 import { useSort, type SortDir } from '../lib/sort'
@@ -31,9 +42,16 @@ function getter(ft: FileTypeStat, key: string): string | number {
 }
 const { sortKey, sortDir, toggle, sorted } = useSort(fileTypesRef, getter, 'size', 'desc')
 
-const hasCustomColors = computed(() => Object.keys(customExtColors).length > 0)
+const hasCustomColors = computed(() => Object.keys(customExtColors).length > 0 || customFolderColor.value !== null)
 function onPick(ext: string, e: Event) {
   setExtColor(ext, (e.target as HTMLInputElement).value)
+}
+function onPickFolder(e: Event) {
+  setFolderColor((e.target as HTMLInputElement).value)
+}
+function resetAllColors() {
+  resetAllExtColors()
+  resetFolderColor()
 }
 
 const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left' }[] = [
@@ -59,13 +77,33 @@ const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left'
           </th>
           <th class="num">Percent</th>
           <th class="reset-col">
-            <button v-if="hasCustomColors" class="reset-all-btn" title="Reset all custom colors" @click="resetAllExtColors">
+            <button v-if="hasCustomColors" class="reset-all-btn" title="Reset all custom colors" @click="resetAllColors">
               Reset colors
             </button>
           </th>
         </tr>
       </thead>
       <tbody>
+        <tr class="folder-row">
+          <td class="name-col">
+            <input
+              type="color"
+              class="swatch-picker"
+              :value="directoryColor()"
+              title="Pick a color for folders"
+              @input="onPickFolder"
+            />
+            Folders
+          </td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="num">—</td>
+          <td class="reset-col">
+            <button v-if="customFolderColor !== null" class="reset-one-btn" title="Reset to default color" @click="resetFolderColor">
+              ↺
+            </button>
+          </td>
+        </tr>
         <tr v-for="ft in sorted" :key="ft.ext">
           <td class="name-col">
             <input
@@ -185,6 +223,10 @@ td.name-col {
 .reset-one-btn {
   padding: 1px 5px;
   font-size: 12px;
+}
+.folder-row td {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 .empty {
   text-align: center;

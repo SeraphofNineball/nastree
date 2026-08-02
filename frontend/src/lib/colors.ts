@@ -1,5 +1,6 @@
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import type { FileTypeStat } from '../types'
+import { currentTheme } from './theme'
 
 const CUSTOM_COLOR_STORAGE_KEY = 'nastree-ext-colors'
 
@@ -35,6 +36,21 @@ export function resetAllExtColors() {
   persistCustomExtColors()
 }
 
+const FOLDER_COLOR_STORAGE_KEY = 'nastree-folder-color'
+
+/** User-chosen override for the folder/directory color. Null means "use the theme default". */
+export const customFolderColor = ref<string | null>(localStorage.getItem(FOLDER_COLOR_STORAGE_KEY))
+
+export function setFolderColor(color: string) {
+  customFolderColor.value = color
+  localStorage.setItem(FOLDER_COLOR_STORAGE_KEY, color)
+}
+
+export function resetFolderColor() {
+  customFolderColor.value = null
+  localStorage.removeItem(FOLDER_COLOR_STORAGE_KEY)
+}
+
 function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
@@ -45,7 +61,7 @@ export function seriesColor(slot: number): string {
 }
 
 export function directoryColor(): string {
-  return seriesColor(1)
+  return customFolderColor.value ?? seriesColor(1)
 }
 
 export function otherColor(): string {
@@ -73,10 +89,12 @@ export function colorForExt(ext: string | undefined, map: Map<string, string>): 
   return customExtColors[ext] ?? map.get(ext) ?? otherColor()
 }
 
-/** Shifts a #rrggbb color toward white (positive) or black (negative), amount in 0..1. */
+/** Shifts a #rrggbb color toward white (positive) or a shadow tone (negative), amount in 0..1.
+ *  The shadow tone is near-black on dark themes, but a mid-grey on the light theme -
+ *  blending toward black there reads as muddy against a light page. */
 function shadeColor(hex: string, amount: number): string {
   const num = parseInt(hex.replace('#', ''), 16)
-  const target = amount < 0 ? 0 : 255
+  const target = amount >= 0 ? 255 : currentTheme.value === 'light' ? 130 : 0
   const p = Math.abs(amount)
   const channel = (shift: number) => {
     const c = (num >> shift) & 0xff

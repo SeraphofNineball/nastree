@@ -1,4 +1,39 @@
+import { reactive } from 'vue'
 import type { FileTypeStat } from '../types'
+
+const CUSTOM_COLOR_STORAGE_KEY = 'nastree-ext-colors'
+
+function loadCustomExtColors(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CUSTOM_COLOR_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** User-chosen overrides for per-extension colors, keyed by extension (e.g. ".mkv").
+ *  Reactive so treemap/pie/table all repaint when a color is changed. */
+export const customExtColors = reactive<Record<string, string>>(loadCustomExtColors())
+
+function persistCustomExtColors() {
+  localStorage.setItem(CUSTOM_COLOR_STORAGE_KEY, JSON.stringify(customExtColors))
+}
+
+export function setExtColor(ext: string, color: string) {
+  customExtColors[ext] = color
+  persistCustomExtColors()
+}
+
+export function resetExtColor(ext: string) {
+  delete customExtColors[ext]
+  persistCustomExtColors()
+}
+
+export function resetAllExtColors() {
+  for (const key of Object.keys(customExtColors)) delete customExtColors[key]
+  persistCustomExtColors()
+}
 
 function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -35,7 +70,7 @@ export function buildExtColorMap(fileTypes: FileTypeStat[]): Map<string, string>
 
 export function colorForExt(ext: string | undefined, map: Map<string, string>): string {
   if (!ext) return otherColor()
-  return map.get(ext) ?? otherColor()
+  return customExtColors[ext] ?? map.get(ext) ?? otherColor()
 }
 
 /** Shifts a #rrggbb color toward white (positive) or black (negative), amount in 0..1. */

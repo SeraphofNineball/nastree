@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FileTypeStat } from '../types'
-import { buildExtColorMap, colorForExt } from '../lib/colors'
+import { buildExtColorMap, colorForExt, customExtColors, setExtColor, resetExtColor, resetAllExtColors } from '../lib/colors'
 import { formatBytes, formatPercent } from '../lib/format'
 import { currentTheme } from '../lib/theme'
 import { useSort, type SortDir } from '../lib/sort'
@@ -31,6 +31,11 @@ function getter(ft: FileTypeStat, key: string): string | number {
 }
 const { sortKey, sortDir, toggle, sorted } = useSort(fileTypesRef, getter, 'size', 'desc')
 
+const hasCustomColors = computed(() => Object.keys(customExtColors).length > 0)
+function onPick(ext: string, e: Event) {
+  setExtColor(ext, (e.target as HTMLInputElement).value)
+}
+
 const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left' }[] = [
   { key: 'ext', label: 'Extension', defaultDir: 'asc', align: 'left' },
   { key: 'size', label: 'Size', defaultDir: 'desc' },
@@ -53,20 +58,36 @@ const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left'
             <span v-if="sortKey === col.key" class="arrow">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
           </th>
           <th class="num">Percent</th>
+          <th class="reset-col">
+            <button v-if="hasCustomColors" class="reset-all-btn" title="Reset all custom colors" @click="resetAllExtColors">
+              Reset colors
+            </button>
+          </th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="ft in sorted" :key="ft.ext">
           <td class="name-col">
-            <span class="swatch" :style="{ background: colorForExt(ft.ext, colorMap) }" />
+            <input
+              type="color"
+              class="swatch-picker"
+              :value="colorForExt(ft.ext, colorMap)"
+              :title="`Pick a color for ${ft.ext}`"
+              @input="onPick(ft.ext, $event)"
+            />
             {{ ft.ext }}
           </td>
           <td class="num">{{ formatBytes(ft.size) }}</td>
           <td class="num">{{ ft.count.toLocaleString() }}</td>
           <td class="num">{{ formatPercent(ft.size, total) }}</td>
+          <td class="reset-col">
+            <button v-if="ft.ext in customExtColors" class="reset-one-btn" title="Reset to default color" @click="resetExtColor(ft.ext)">
+              ↺
+            </button>
+          </td>
         </tr>
         <tr v-if="!fileTypes.length">
-          <td colspan="4" class="empty">No data yet.</td>
+          <td colspan="5" class="empty">No data yet.</td>
         </tr>
       </tbody>
     </table>
@@ -122,12 +143,48 @@ td {
 td.name-col {
   text-align: left;
 }
-.swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+.swatch-picker {
+  width: 16px;
+  height: 16px;
   margin-right: 8px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: none;
+  cursor: pointer;
+  vertical-align: -3px;
+}
+.swatch-picker::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+.swatch-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+.reset-col {
+  width: 1%;
+  padding-left: 4px;
+  padding-right: 8px;
+}
+.reset-all-btn,
+.reset-one-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.reset-all-btn:hover,
+.reset-one-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+.reset-one-btn {
+  padding: 1px 5px;
+  font-size: 12px;
 }
 .empty {
   text-align: center;

@@ -1,12 +1,51 @@
 # NAStree
 
 A WizTree/WinDirStat-style disk usage visualizer for a NAS, built to run in Docker
-and serve a web dashboard.
+and serve a web dashboard — so you can see what's eating your storage from any
+browser instead of installing a Windows-only app on the NAS itself.
 
 - **Backend**: Go. Walks a mounted path on an interval (or on demand), stores
   results in SQLite, serves a small JSON API.
-- **Frontend**: Vue 3 + ECharts. Folder table, file-type breakdown, and a
-  treemap, navigable by clicking into folders.
+- **Frontend**: Vue 3 + ECharts. A WizTree-style nested treemap, a pie chart,
+  a scan-wide file search with duplicate detection, and the usual folder/file-type
+  tables — all navigable by clicking into folders.
+
+## Features
+
+**Three visualizations, one click apart** — a toolbar next to the theme picker
+switches between:
+- **Treemap** — a dense, recursively-nested mosaic (files as small leaf boxes,
+  folders as stacked header bands), colored by directory vs. file extension,
+  with a subtle gradient and a white hover outline.
+- **Pie chart** — the same folder's contents as a donut chart; small slices
+  automatically fold into "Other" so one huge file doesn't turn everything
+  else into an unreadable sliver.
+- **File view** — a flat, scan-wide file search (not limited to the folder
+  you're in), styled after WizTree's File View: search by filename or full
+  path, a folders-only filter, and a **duplicate finder** — match by name+size
+  or name+size+date, with a "duplicates only" toggle and Dup Count/Dup Size
+  columns.
+
+A **"Treemap / Pie View" toggle** in the top bar swaps the whole content area
+for a maximized version of whichever visualization is active, for when you
+want the chart to fill the screen.
+
+**Navigation** — an expandable/collapsible directory tree sidebar (stays in
+sync no matter which view you navigate from), a breadcrumb, an Up button, and
+sortable columns on every table (click a header to sort, click again to flip
+direction).
+
+**Themes** — six built in (Dark, Light, High Contrast, VS Code, Monokai,
+Solarized), picked from a dropdown and persisted locally. Every visualization
+(treemap, pie, swatches) recolors live when you switch.
+
+**Custom colors** — click any color swatch in the file-type table (including
+the dedicated "Folders" row) to open a native color picker and override that
+extension's or folders' color everywhere it's drawn. Choices persist across
+reloads, with per-item and reset-all controls.
+
+**Background scanning** — an initial scan runs on container startup, then
+again on an interval (`SCAN_INTERVAL`), or on demand via the "Rescan" button.
 
 ## Run it
 
@@ -67,7 +106,7 @@ docker/     Dockerfile (multi-stage: build frontend + backend, alpine runtime)
 
 ## Local development
 
-Backend (requires Go 1.23+; not needed if you only use Docker):
+Backend (requires Go 1.25+; not needed if you only use Docker):
 
 ```sh
 cd backend

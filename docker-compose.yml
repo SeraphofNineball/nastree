@@ -13,7 +13,7 @@ services:
       RETAIN_SCANS: "5"
     volumes:
       # Point this at the NAS share/path you want scanned. Read-only is enough.
-      - /path/to/your/nas/share:/data:ro
+      - C:/Users/flclk/OneDrive/Documents/Projects/NAStree:/data:ro
       - nastree-db:/db
 
 volumes:

@@ -27,7 +27,24 @@ func New(st *store.Store, runner Runner) *Server {
 	return s
 }
 
+// ServeHTTP applies permissive CORS before delegating to the route mux. This
+// server is only ever reached over 127.0.0.1 by a single local client (the
+// Docker web UI, or an embedding desktop app's webview, which runs at its own
+// origin) so reflecting the request's Origin is safe.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	} else {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	s.mux.ServeHTTP(w, r)
 }
 

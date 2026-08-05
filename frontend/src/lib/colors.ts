@@ -104,6 +104,14 @@ export function textSecondaryColor(): string {
   return cssVar('--text-secondary') || '#52514e'
 }
 
+export function textPrimaryColor(): string {
+  return cssVar('--text-primary') || '#0b0b0b'
+}
+
+export function borderColor(): string {
+  return cssVar('--border') || 'rgba(11, 11, 11, 0.1)'
+}
+
 /** Stable ext -> color assignment: top 7 extensions by global size get their
  *  own hue, everything else folds into a shared "other" gray. */
 export function buildExtColorMap(fileTypes: FileTypeStat[]): Map<string, string> {

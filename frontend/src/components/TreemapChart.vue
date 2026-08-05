@@ -6,7 +6,10 @@ import { TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import type { TreeNode, FileTypeStat } from '../types'
-import { buildExtColorMap, colorForExt, directoryColor, treemapGradient } from '../lib/colors'
+import {
+  borderColor, buildExtColorMap, colorForExt, directoryColor, surfaceColor, textPrimaryColor,
+  treemapGradient,
+} from '../lib/colors'
 import { formatBytes } from '../lib/format'
 import { currentTheme } from '../lib/theme'
 
@@ -68,6 +71,10 @@ const option = computed(() => {
         const kind = d.isDir ? `${d.files} files, ${d.dirs} folders` : d.ext || 'file'
         return `<strong>${d.name}</strong><br/>${formatBytes(d.size)} &middot; ${kind}`
       },
+      backgroundColor: surfaceColor(),
+      borderColor: borderColor(),
+      borderWidth: 1,
+      textStyle: { color: textPrimaryColor() },
     },
     series: [
       {

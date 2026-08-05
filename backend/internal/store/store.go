@@ -347,6 +347,7 @@ type FileSearchParams struct {
 	FoldersOnly    bool   // show only directories, excluding files (default: files only)
 	DuplicatesOnly bool   // only return files that share a duplicate key with another file
 	DupMode        string // "name_size" (default) or "name_size_date"
+	UnderPath      string // restrict results to files under this directory (duplicate detection stays drive-wide)
 	Limit          int
 }
 
@@ -386,6 +387,12 @@ func (s *Store) SearchFiles(p FileSearchParams) ([]model.Node, error) {
 		) d ON ` + dupJoin + `
 		WHERE n.scan_id = ?`
 	args := []any{scanID, scanID}
+
+	if p.UnderPath != "" {
+		prefix := filepath.Clean(p.UnderPath) + string(filepath.Separator)
+		query += " AND substr(n.path, 1, ?) = ?"
+		args = append(args, len(prefix), prefix)
+	}
 
 	if p.FoldersOnly {
 		query += " AND n.is_dir = 1"

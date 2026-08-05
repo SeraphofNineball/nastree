@@ -6,7 +6,10 @@ import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import VChart from 'vue-echarts'
 import type { TreeNode, FileTypeStat } from '../types'
-import { buildExtColorMap, colorForExt, directoryColor, otherColor, surfaceColor, textSecondaryColor } from '../lib/colors'
+import {
+  borderColor, buildExtColorMap, colorForExt, directoryColor, otherColor, surfaceColor,
+  textPrimaryColor, textSecondaryColor,
+} from '../lib/colors'
 import { formatBytes } from '../lib/format'
 import { currentTheme } from '../lib/theme'
 
@@ -54,6 +57,10 @@ const option = computed(() => {
   return {
     tooltip: {
       formatter: (info: any) => `<strong>${info.name}</strong><br/>${formatBytes(info.value)} &middot; ${info.percent}%`,
+      backgroundColor: surfaceColor(),
+      borderColor: borderColor(),
+      borderWidth: 1,
+      textStyle: { color: textPrimaryColor() },
     },
     legend: {
       type: 'scroll',

@@ -148,6 +148,7 @@ func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
 		FoldersOnly:    q.Get("foldersOnly") == "true",
 		DuplicatesOnly: q.Get("duplicatesOnly") == "true",
 		DupMode:        q.Get("dupMode"),
+		UnderPath:      q.Get("underPath"),
 		Limit:          limit,
 	}
 	results, err := s.store.SearchFiles(params)

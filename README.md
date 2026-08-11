@@ -1,6 +1,6 @@
 # NAStree
 
-A WizTree/WinDirStat-style disk usage visualizer for a NAS, built to run in Docker
+NAStree is A WizTree/WinDirStat-style disk usage visualizer for any NAS that also has support for running containers, built to run in Docker
 and serve a web dashboard — so you can see what's eating your storage from any
 browser instead of installing a Windows-only app on the NAS itself.
 
@@ -120,3 +120,7 @@ cd frontend
 npm install
 npm run dev
 ```
+
+
+## Features to come
+additional features to be listed here.

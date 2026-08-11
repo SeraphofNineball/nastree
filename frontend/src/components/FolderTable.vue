@@ -99,7 +99,37 @@ const columns: { key: string; label: string; defaultDir: SortDir; align?: 'left'
   background: var(--surface-1);
 }
 table {
+  width: 100%;
+  table-layout: fixed;
   font-size: 13px;
+}
+th:nth-child(1),
+td:nth-child(1) {
+  width: 24%;
+}
+th:nth-child(2),
+td:nth-child(2) {
+  width: 12%;
+}
+th:nth-child(3),
+td:nth-child(3) {
+  width: 10%;
+}
+th:nth-child(4),
+td:nth-child(4) {
+  width: 10%;
+}
+th:nth-child(5),
+td:nth-child(5) {
+  width: 10%;
+}
+th:nth-child(6),
+td:nth-child(6) {
+  width: 18%;
+}
+th:nth-child(7),
+td:nth-child(7) {
+  width: 16%;
 }
 thead th {
   position: sticky;
@@ -153,12 +183,12 @@ tr.clickable:hover td {
 }
 .pct-bar {
   position: relative;
-  width: 100px;
+  width: 100%;
   height: 14px;
   background: var(--gridline);
   border-radius: 3px;
   overflow: hidden;
-  display: inline-block;
+  display: block;
 }
 .pct-fill {
   position: absolute;

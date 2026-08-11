@@ -26,7 +26,9 @@ async function loadChildren() {
   loading.value = true
   try {
     const kids = await api.children(props.node.path)
-    childDirs.value = kids.filter((k) => k.isDir)
+    childDirs.value = kids
+      .filter((k) => k.isDir)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }))
   } finally {
     loading.value = false
   }

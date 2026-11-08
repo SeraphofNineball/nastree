@@ -45,6 +45,7 @@ func Walk(rootPath string) (*Result, error) {
 	nodes[filepath.Clean(rootPath)] = root
 
 	extStats := make(map[string]*ExtStat)
+	bound := newBoundary(rootPath)
 
 	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -76,7 +77,7 @@ func Walk(rootPath string) (*Result, error) {
 			modTime: info.ModTime().Unix(),
 		}
 		if !d.IsDir() {
-			n.size = info.Size()
+			n.size = bound.countSize(info)
 			ext := strings.ToLower(filepath.Ext(d.Name()))
 			if ext == "" {
 				ext = "(no extension)"
@@ -94,6 +95,10 @@ func Walk(rootPath string) (*Result, error) {
 		parent := nodes[filepath.Clean(filepath.Dir(clean))]
 		if parent != nil {
 			parent.children = append(parent.children, n)
+		}
+		// Another disk, a network share or a system filesystem is mounted here: list the folder, don't enter it.
+		if d.IsDir() && bound.skipDir(clean) {
+			return fs.SkipDir
 		}
 		return nil
 	})

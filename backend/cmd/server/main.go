@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +21,16 @@ func main() {
 	listenAddr := envOr("LISTEN_ADDR", ":8080")
 	interval := envDuration("SCAN_INTERVAL", 6*time.Hour)
 	retain := envInt("RETAIN_SCANS", 5)
+
+	// Run as a desktop app's sidecar, NAStree must not outlive the app, even when the app is killed or crashes and
+	// gets no chance to stop it. The app keeps a pipe to NAStree's stdin open; the OS closes it however the app ends.
+	// Opt-in, because in a container stdin is usually closed from the start.
+	if os.Getenv("EXIT_ON_STDIN_CLOSE") == "1" {
+		go exitWhenClosed(os.Stdin, func() {
+			log.Printf("stdin closed: the parent app has exited, stopping")
+			os.Exit(0)
+		})
+	}
 
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		log.Fatalf("failed to create db directory: %v", err)
@@ -44,6 +55,12 @@ func main() {
 	if err := http.ListenAndServe(listenAddr, mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// exitWhenClosed calls exit once r reaches end of input or fails. Anything written to it is ignored.
+func exitWhenClosed(r io.Reader, exit func()) {
+	_, _ = io.Copy(io.Discard, r)
+	exit()
 }
 
 // spaHandler serves static files, falling back to index.html for any
